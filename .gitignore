@@ -4,6 +4,7 @@
 *.srm
 *.exe
 /cfg.json
+/up-pokemon.sh
 __pycache__/
 *.pyc
 .pytest_cache/
