@@ -1,4 +1,5 @@
 import struct
+from ..species import GEN3_NATIONAL_SPECIES
 from typing import Optional
 from ..constants import (
     NATURES, SUBSTRUCTURE_ORDER, SPECIES_NAMES,
@@ -18,7 +19,7 @@ from ..firered.constants import (
     PARTY_POKEMON_SIZE, BOX_POKEMON_SIZE,
 )
 from ...base.types import (
-    ParsedPokemon, IVSet, EVSet, MoveSlot, DataSource, PokemonOrigin
+    ParsedPokemon, IVSet, EVSet, MoveSlot, DataSource, PokemonOrigin, SaveParseError
 )
 
 
@@ -109,13 +110,15 @@ def _calc_stats(species_id: int, level: int, ivs, evs, nature_id: int):
 def parse_pokemon(raw: bytes, is_party: bool = False,
                   party_slot: Optional[int] = None,
                   box_number: Optional[int] = None,
-                  box_slot: Optional[int] = None) -> Optional[ParsedPokemon]:
+                  box_slot: Optional[int] = None, strict: bool = False) -> Optional[ParsedPokemon]:
     """
     Parse a raw Pokémon byte block.
     raw must be BOX_POKEMON_SIZE (80) or PARTY_POKEMON_SIZE (100) bytes.
     Returns None if the slot is empty (species_id == 0 or is_egg).
     """
     if len(raw) < BOX_POKEMON_SIZE:
+        if strict:
+            raise SaveParseError("El archivo contiene un bloque de Pokémon incompleto.")
         return None
 
     pid  = struct.unpack_from("<I", raw, PKM_PID_OFFSET)[0]
@@ -133,6 +136,8 @@ def parse_pokemon(raw: bytes, is_party: bool = False,
     markings = raw[PKM_MARKINGS_OFFSET]
 
     if not _verify_checksum(raw, pid, otid_raw):
+        if strict:
+            raise SaveParseError("El archivo contiene un Pokémon con datos dañados. No se aplicaron cambios.")
         # Bad egg or corrupted data — skip
         return None
 
@@ -146,6 +151,13 @@ def parse_pokemon(raw: bytes, is_party: bool = False,
 
     if species_id == 0:
         return None
+    if species_id >= 252:
+        if 277 <= species_id < 277 + len(GEN3_NATIONAL_SPECIES):
+            species_id = GEN3_NATIONAL_SPECIES[species_id - 277]
+        elif strict:
+            raise SaveParseError("El archivo contiene una especie no válida.")
+        else:
+            return None
 
     # -- Attacks substructure --
     a = _get_substructure(decrypted, pid, "A")

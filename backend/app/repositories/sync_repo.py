@@ -17,7 +17,7 @@ class SyncRepository:
             select(SyncSession).where(
                 SyncSession.id == session_id,
                 SyncSession.user_id == user_id,
-            )
+            ).with_for_update()
         )
         return result.scalar_one_or_none()
 

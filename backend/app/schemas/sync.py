@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel
+from .game import Game
 
 
 class ParsedPokemonPreview(BaseModel):
@@ -16,16 +17,19 @@ class ParsedPokemonPreview(BaseModel):
 
 
 class SyncDiffItem(BaseModel):
-    status: str  # "new" | "updated" | "unchanged"
+    game: Game = "firered"
+    status: str  # "new" | "updated" | "unchanged" | "removed"
     pokemon: ParsedPokemonPreview
     changes: Optional[dict] = None  # For "updated": what changed
 
 
 class SyncPreviewOut(BaseModel):
+    game: Game = "firered"
     sync_session_id: int
     new_count: int
     updated_count: int
     unchanged_count: int
+    removed_count: int = 0
     items: list[SyncDiffItem]
 
 
@@ -34,9 +38,19 @@ class SyncConfirmIn(BaseModel):
 
 
 class SyncResultOut(BaseModel):
+    game: Game = "firered"
     sync_session_id: int
     status: str
     new_count: int
     updated_count: int
     unchanged_count: int
+    removed_count: int = 0
     completed_at: Optional[datetime]
+
+
+class BatchPreviewOut(BaseModel):
+    previews: list[SyncPreviewOut]
+
+
+class BatchConfirmIn(BaseModel):
+    sync_session_ids: list[int]

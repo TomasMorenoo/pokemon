@@ -9,6 +9,12 @@ export function useSyncConfirm() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: syncConfirm,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['pokemon'] }),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['pokemon'] }),
+        qc.invalidateQueries({ queryKey: ['trainer-bag'] }),
+        qc.invalidateQueries({ queryKey: ['drive-configs'] }),
+      ])
+    },
   })
 }

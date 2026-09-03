@@ -9,12 +9,13 @@ class PokemonRepository:
         self.db = db
 
     async def find_by_identity(
-        self, user_id: int, pid: int, ot_id: int, ot_secret_id: int
+        self, user_id: int, pid: int, ot_id: int, ot_secret_id: int, game: str = "firered"
     ) -> PokemonInstance | None:
         result = await self.db.execute(
             select(PokemonInstance).where(
                 and_(
                     PokemonInstance.user_id == user_id,
+                    PokemonInstance.game == game,
                     PokemonInstance.pid == type_coerce(pid, BigInteger),
                     PokemonInstance.ot_id == type_coerce(ot_id, BigInteger),
                     PokemonInstance.ot_secret_id == type_coerce(ot_secret_id, BigInteger),
@@ -26,7 +27,7 @@ class PokemonRepository:
     async def list_for_user(self, user_id: int) -> list[PokemonInstance]:
         result = await self.db.execute(
             select(PokemonInstance)
-            .where(PokemonInstance.user_id == user_id)
+            .where(PokemonInstance.user_id == user_id, PokemonInstance.is_present.is_(True))
             .options(selectinload(PokemonInstance.measurements))
             .order_by(PokemonInstance.species_id, PokemonInstance.id)
         )
@@ -39,6 +40,7 @@ class PokemonRepository:
                 and_(
                     PokemonInstance.id == instance_id,
                     PokemonInstance.user_id == user_id,
+                    PokemonInstance.is_present.is_(True),
                 )
             )
             .options(selectinload(PokemonInstance.measurements))

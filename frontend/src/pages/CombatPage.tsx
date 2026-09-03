@@ -3,7 +3,8 @@ import { Search, X, Clipboard, ClipboardCheck } from 'lucide-react'
 import { usePokemonList, useTrainerBag } from '../hooks/usePokemon'
 import { getTypes } from '../data/pokemonTypes'
 import { getEffectiveness } from '../data/typeEffectiveness'
-import { TYPE_COLOR, TYPE_ES, TYPE_ICON_URL } from '../data/pokemonTypes'
+import { TYPE_ES, TYPE_ICON_URL } from '../data/pokemonTypes'
+import { GAMES, type Game } from '../api/drive'
 import type { Pokemon } from '../types/pokemon'
 import type { PokemonType } from '../data/pokemonTypes'
 
@@ -66,15 +67,16 @@ function matchType(q: string): PokemonType | null {
   return TYPE_ES_LOOKUP[normalize(q)] ?? null
 }
 
-function spriteUrl(speciesId: number): string {
-  return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${speciesId}.png`
+function spriteUrl(speciesId: number, shiny = false): string {
+  return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${shiny ? 'shiny/' : ''}${speciesId}.png`
 }
 
 const ALL_TYPES = Object.keys(TYPE_ES) as PokemonType[]
 
 export default function CombatPage() {
   const { data: allPokemon = [] } = usePokemonList()
-  const { data: bag } = useTrainerBag()
+  const [game, setGame] = useState<Game>('firered')
+  const { data: bag } = useTrainerBag(game)
   const [moveTypes, setMoveTypes] = useState<Record<number, PokemonType>>({})
   const [rival, setRival] = useState<Rival | null>(null)
   const [query, setQuery] = useState('')
@@ -88,6 +90,7 @@ export default function CombatPage() {
   const suggestionsRef = useRef<HTMLDivElement>(null)
 
   const team = [...allPokemon]
+    .filter(p => p.game === game)
     .filter((p) => p.party_slot !== null && p.party_slot !== undefined)
     .sort((a, b) => (a.party_slot ?? 99) - (b.party_slot ?? 99))
 
@@ -233,13 +236,15 @@ export default function CombatPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="space-y-5 sm:space-y-6 min-w-0">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <h1 className="text-2xl font-extrabold text-white">Combate</h1>
-        <p className="text-sm text-gray-500 mt-0.5">¿A quién querés enfrentarte?</p>
+        <select aria-label="Partida para combate" value={game} onChange={e => setGame(e.target.value as Game)} className="w-full sm:w-auto min-w-0 min-h-11 bg-gray-900 border border-gray-800 rounded-xl px-3 py-2 text-base sm:text-sm text-gray-300">
+          {GAMES.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+        </select>
+        <p className="w-full text-sm text-gray-500">¿A quién querés enfrentarte?</p>
       </div>
 
-      {/* Team cards — always 3 columns, 2 rows */}
       <section>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Mi equipo</h2>
@@ -247,7 +252,7 @@ export default function CombatPage() {
             <button
               onClick={copyTeam}
               title="Copiar estadísticas del equipo"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors text-xs font-medium"
+              className="flex items-center gap-1.5 min-h-11 px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors text-xs font-medium"
             >
               {copied
                 ? <><ClipboardCheck className="w-4 h-4 text-green-400" /><span className="text-green-400">¡Copiado!</span></>
@@ -259,16 +264,16 @@ export default function CombatPage() {
         {team.length === 0 ? (
           <p className="text-gray-600 text-sm">No hay Pokémon en el equipo. Sincronizá tu partida.</p>
         ) : (
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 min-[420px]:grid-cols-3 xl:grid-cols-6 gap-2 sm:gap-3">
             {team.map((p) => (
-              <div key={p.id} className="bg-gray-900 border border-gray-800 rounded-xl p-3 flex flex-col items-center gap-2 min-w-0">
+              <div key={p.id} className="bg-gray-900 border border-gray-800 rounded-xl p-2.5 sm:p-3 flex flex-col items-center gap-1.5 sm:gap-2 min-w-0">
                 <img
-                  src={spriteUrl(p.species_id)}
+                  src={spriteUrl(p.species_id, p.is_shiny)}
                   alt={p.species_name}
-                  className="w-14 h-14 sm:w-20 sm:h-20 object-contain"
+                  className="w-16 h-16 sm:w-20 sm:h-20 object-contain"
                   style={{ imageRendering: 'pixelated' }}
                 />
-                <div className="text-xs sm:text-sm font-semibold text-white text-center leading-tight truncate w-full text-center">
+                <div className="text-sm font-semibold text-white text-center leading-tight break-words w-full">
                   {p.species_name}{p.is_shiny ? ' ✨' : ''}
                 </div>
                 <div className="flex gap-1.5 justify-center">
@@ -287,7 +292,7 @@ export default function CombatPage() {
       <section>
         <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">Rival</h2>
         <div className="flex gap-2">
-          <div className="relative flex-1">
+          <div className="relative flex-1 min-w-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 w-4 h-4" />
             <input
               ref={inputRef}
@@ -296,12 +301,13 @@ export default function CombatPage() {
               onKeyDown={(e) => e.key === 'Enter' && searchRival()}
               onFocus={() => (suggestions.length > 0 || typeSuggestions.length > 0) && setShowSuggestions(true)}
               placeholder="Nombre, número o tipo..."
-              className="w-full bg-gray-900 border border-gray-800 focus:border-blue-500 text-white rounded-xl pl-9 pr-9 py-2.5 text-sm focus:outline-none transition-colors placeholder-gray-600"
+              className="w-full min-h-11 bg-gray-900 border border-gray-800 focus:border-blue-500 text-white rounded-xl pl-9 pr-9 py-2.5 text-base sm:text-sm focus:outline-none transition-colors placeholder-gray-600"
             />
             {query && (
               <button
                 onClick={() => { setQuery(''); setRival(null); setError(null); setSuggestions([]); setTypeSuggestions([]); setShowSuggestions(false) }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                aria-label="Limpiar rival"
+                className="absolute right-0 top-1/2 -translate-y-1/2 w-9 h-11 flex items-center justify-center text-gray-500 hover:text-gray-300"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -310,7 +316,7 @@ export default function CombatPage() {
             {showSuggestions && (typeSuggestions.length > 0 || suggestions.length > 0) && (
               <div
                 ref={suggestionsRef}
-                className="absolute top-full left-0 right-0 mt-1 bg-gray-900 border border-gray-700 rounded-xl overflow-hidden z-30 shadow-xl"
+                className="absolute top-full left-0 right-0 mt-1 bg-gray-900 border border-gray-700 rounded-xl max-h-[50vh] overflow-y-auto overscroll-contain z-30 shadow-xl"
               >
                 {/* Type suggestions first */}
                 {typeSuggestions.length > 0 && (
@@ -352,7 +358,7 @@ export default function CombatPage() {
           <button
             onClick={() => searchRival()}
             disabled={loading || !query.trim()}
-            className="bg-blue-600 hover:bg-blue-500 disabled:bg-blue-900 disabled:text-blue-400 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition-colors"
+            className="shrink-0 min-h-11 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-900 disabled:text-blue-400 text-white font-semibold px-3 sm:px-4 py-2.5 rounded-xl text-sm transition-colors"
           >
             {loading ? '...' : 'Buscar'}
           </button>
@@ -385,18 +391,18 @@ export default function CombatPage() {
           <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">Mejor matchup</h2>
           <div className="space-y-2">
             {scores.map(({ pkm, offType, offEff, bestMove, defensiveExposure, total }) => (
-              <div key={pkm.id} className="bg-gray-900 border border-gray-800 rounded-xl px-4 py-3 flex items-center gap-4">
-                <img src={spriteUrl(pkm.species_id)} alt={pkm.species_name} className="w-10 h-10 object-contain shrink-0" style={{ imageRendering: 'pixelated' }} />
-                <span className={`text-lg w-8 shrink-0 ${starsColor(total)}`}>{starsIcon(total)}</span>
-                <div className="flex-1 min-w-0">
+              <div key={pkm.id} className="bg-gray-900 border border-gray-800 rounded-xl px-3 sm:px-4 py-3 grid grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-x-2 sm:gap-x-4 gap-y-1">
+                <img src={spriteUrl(pkm.species_id, pkm.is_shiny)} alt={pkm.species_name} className="w-10 h-10 object-contain row-span-2" style={{ imageRendering: 'pixelated' }} />
+                <span className={`col-start-3 row-start-1 text-sm sm:text-base whitespace-nowrap text-right ${starsColor(total)}`}>{starsIcon(total)}</span>
+                <div className="col-start-2 row-start-1 row-span-2 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-white font-medium text-sm">{pkm.species_name}</span>
                     {pkm.is_shiny && <span>✨</span>}
                   </div>
                   <div className="flex items-center gap-3 mt-1 flex-wrap">
-                    <div className="flex items-center gap-1.5 text-xs">
+                    <div className="flex flex-wrap items-center gap-1.5 text-xs min-w-0">
                       <img src={TYPE_ICON_URL[offType]} alt="" className="w-3.5 h-3.5 object-contain" />
-                      <span className="text-gray-400">{bestMove ? bestMove.move_name : TYPE_ES[offType]}</span>
+                      <span className="text-gray-400 break-words min-w-0">{bestMove ? bestMove.move_name : TYPE_ES[offType]}</span>
                       <span className="font-bold font-mono" style={{ color: effColor(offEff) }}>{effLabel(offEff)}</span>
                     </div>
                     <div className="flex items-center gap-1 text-xs text-gray-500">
@@ -405,7 +411,7 @@ export default function CombatPage() {
                     </div>
                   </div>
                 </div>
-                <div className="text-xs text-gray-600 font-mono shrink-0">{total.toFixed(2)}</div>
+                <div className="col-start-3 row-start-2 text-right text-xs text-gray-500 font-mono">{total.toFixed(2)}</div>
               </div>
             ))}
           </div>

@@ -22,44 +22,49 @@ class DriveService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def save_config(self, user_id: int, file_id: str, file_name: str, folder_id: str | None = None) -> dict:
+    async def save_config(self, user_id: int, file_id: str, file_name: str, folder_id: str | None = None, game: str = "firered") -> dict:
         file_id = _extract_file_id(file_id)
         result = await self.db.execute(
-            select(DriveConfig).where(DriveConfig.user_id == user_id)
+            select(DriveConfig).where(DriveConfig.user_id == user_id, DriveConfig.game == game)
         )
         config = result.scalar_one_or_none()
         if not config:
             config = DriveConfig(
                 user_id=user_id,
+                game=game,
                 file_id=file_id,
                 file_name=file_name,
                 folder_id=folder_id,
             )
             self.db.add(config)
         else:
+            if config.file_id != file_id:
+                config.last_drive_modified = None
             config.file_id = file_id
             config.file_name = file_name
             config.folder_id = folder_id
         await self.db.commit()
-        return {"file_id": file_id, "file_name": file_name}
+        return {"file_id": file_id, "file_name": file_name, "game": game}
 
-    async def get_config(self, user_id: int) -> dict | None:
+    async def get_config(self, user_id: int, game: str = "firered") -> dict | None:
         result = await self.db.execute(
-            select(DriveConfig).where(DriveConfig.user_id == user_id)
+            select(DriveConfig).where(DriveConfig.user_id == user_id, DriveConfig.game == game)
         )
         config = result.scalar_one_or_none()
         if not config:
             return None
         return {
+            "game": config.game,
+            "synced_at": config.synced_at,
             "file_id": config.file_id,
             "file_name": config.file_name,
             "folder_id": config.folder_id,
             "last_drive_modified": config.last_drive_modified,
         }
 
-    async def download_sav(self, user_id: int) -> tuple[bytes, str]:
+    async def download_sav(self, user_id: int, game: str = "firered") -> tuple[bytes, str]:
         """Download .sav from public Drive link. Returns (data, modified_time)."""
-        config = await self.get_config(user_id)
+        config = await self.get_config(user_id, game)
         if not config:
             raise ValueError("No Drive file configured. Configure one in Settings.")
 

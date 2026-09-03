@@ -1,5 +1,6 @@
 import { apiClient } from './client'
 import type { Pokemon, ManualPokemonIn } from '../types/pokemon'
+import type { Game } from './drive'
 
 export async function listPokemon(): Promise<Pokemon[]> {
   const { data } = await apiClient.get<Pokemon[]>('/pokemon/')
@@ -16,7 +17,7 @@ export async function addManualPokemon(body: ManualPokemonIn): Promise<Pokemon> 
   return data
 }
 
-export async function getTrainerBag(): Promise<{ tms: string[] }> {
-  const { data } = await apiClient.get<{ tms: string[] }>('/bag/')
+export async function getTrainerBag(game: Game = 'firered'): Promise<{ tms: string[] }> {
+  const { data } = await apiClient.get<{ tms: string[] }>('/bag/', { params: { game } })
   return data
 }

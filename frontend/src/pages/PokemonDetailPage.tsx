@@ -1,7 +1,8 @@
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useLocation } from 'react-router-dom'
 import { Mars, Venus } from 'lucide-react'
 import { usePokemonDetail } from '../hooks/usePokemon'
 import { IVStars, ivTotal } from '../components/pokemon/IVStars'
+import PokemonSprite from '../components/pokemon/PokemonSprite'
 
 const ACCENT: Record<number, string> = {
   1: '#ef4444', 2: '#f97316', 3: '#eab308', 4: '#22c55e',
@@ -62,6 +63,7 @@ const STAT_LABELS: Record<string, string> = {
 const STAT_KEYS = ['hp', 'attack', 'defense', 'sp_attack', 'sp_defense', 'speed'] as const
 
 export default function PokemonDetailPage() {
+  const location = useLocation()
   const { id } = useParams<{ id: string }>()
   const { data: pokemon, isLoading } = usePokemonDetail(Number(id))
 
@@ -80,7 +82,7 @@ export default function PokemonDetailPage() {
   return (
     <div className="space-y-4">
       {/* Back */}
-      <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors">
+      <Link to={`/collection${location.search}`} className="inline-flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors">
         ← Volver
       </Link>
 
@@ -89,6 +91,7 @@ export default function PokemonDetailPage() {
         className="rounded-2xl p-6 relative overflow-hidden"
         style={{ background: `linear-gradient(135deg, ${color}22 0%, #111827 60%)` }}
       >
+        <PokemonSprite speciesId={pokemon.species_id} shiny={pokemon.is_shiny} name={pokemon.species_name} className="w-24 h-24 object-contain" />
         <div
           className="absolute -top-8 -right-8 w-40 h-40 rounded-full opacity-20"
           style={{ backgroundColor: color }}

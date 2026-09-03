@@ -10,7 +10,8 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<AppShell />}>
-        <Route index element={<HomePage />} />
+        <Route index element={<HomePage showGames />} />
+        <Route path="collection" element={<HomePage />} />
         <Route path="pokemon/:id" element={<PokemonDetailPage />} />
         <Route path="add" element={<AddPokemonPage />} />
         <Route path="settings" element={<SettingsPage />} />

@@ -1,5 +1,6 @@
 import type React from 'react'
 import type { SyncPreview, SyncDiffItem } from '../../types/pokemon'
+import { GAMES } from '../../api/drive'
 
 interface Props {
   preview: SyncPreview
@@ -9,6 +10,9 @@ interface Props {
 }
 
 function ChangeSummary({ item }: { item: SyncDiffItem }) {
+  if (item.status === 'removed') {
+    return <span className="text-red-300 text-xs">Ya no está en el equipo ni en las cajas. Se quitará de tu Pokédex.</span>
+  }
   if (item.status === 'new') {
     return (
       <span className="text-green-400 text-xs">Nv. {item.pokemon.level}</span>
@@ -59,7 +63,7 @@ export default function SyncModal({ preview, onConfirm, onCancel, isConfirming }
   const relevant = preview.items.filter((i) => i.status !== 'unchanged')
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onCancel}>
+    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => { if (!isConfirming) onCancel() }}>
       <div
         className="w-full md:max-w-lg bg-gray-900 border border-gray-800 rounded-t-3xl md:rounded-2xl flex flex-col max-h-[85vh]"
         onClick={(e) => e.stopPropagation()}
@@ -67,10 +71,12 @@ export default function SyncModal({ preview, onConfirm, onCancel, isConfirming }
         {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b border-gray-800">
           <h2 className="text-lg font-bold text-white">Resultado de sincronización</h2>
-          <div className="flex gap-4 mt-2 text-xs">
+          <p className="text-xs text-gray-400 mt-1">{preview.games?.map(id => GAMES.find(g => g.id === id)?.name ?? id).join(' · ')}</p>
+          <div className="flex flex-wrap gap-4 mt-2 text-xs">
             <span className="text-green-400">{preview.new_count} nuevos</span>
             <span className="text-blue-400">{preview.updated_count} actualizados</span>
             <span className="text-gray-500">{preview.unchanged_count} sin cambios</span>
+            <span className="text-red-400">{preview.removed_count ?? 0} retirados</span>
           </div>
         </div>
 
@@ -83,9 +89,9 @@ export default function SyncModal({ preview, onConfirm, onCancel, isConfirming }
               <div key={i} className="bg-gray-800 rounded-xl px-4 py-3">
                 <div className="flex items-center gap-3">
                   <span className={`text-xs font-bold px-2 py-0.5 rounded-full shrink-0 ${
-                    item.status === 'new' ? 'text-green-400 bg-green-400/10' : 'text-blue-400 bg-blue-400/10'
+                    item.status === 'removed' ? 'text-red-400 bg-red-400/10' : item.status === 'new' ? 'text-green-400 bg-green-400/10' : 'text-blue-400 bg-blue-400/10'
                   }`}>
-                    {item.status === 'new' ? 'NUEVO' : 'CAMBIOS'}
+                    {item.status === 'removed' ? 'RETIRADO' : item.status === 'new' ? 'NUEVO' : 'CAMBIOS'}
                   </span>
                   <span className="font-medium text-sm text-white">
                     {item.pokemon.species_name}{item.pokemon.is_shiny ? ' ✨' : ''}
@@ -95,6 +101,7 @@ export default function SyncModal({ preview, onConfirm, onCancel, isConfirming }
                   </span>
                 </div>
                 <ChangeSummary item={item} />
+                <p className="text-xs text-gray-500 mt-1">{GAMES.find(g => g.id === item.game)?.name}</p>
               </div>
             ))
           )}

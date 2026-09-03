@@ -20,6 +20,17 @@ class FireRedParser(BaseSaveParser):
     GAME = "firered"
     GENERATION = 3
 
+    def __init__(self, strict: bool = False, game: str = "firered"):
+        if game not in {"firered", "leafgreen", "emerald", "ruby", "sapphire"}:
+            raise SaveParseError("Juego no compatible.")
+        self.strict = strict
+        self.GAME = game
+        self.party_count_offset = 0x34 if game in {"firered", "leafgreen"} else 0x234
+        self.party_data_offset = self.party_count_offset + 4
+        self.tm_offset = {"firered": 0x464, "leafgreen": 0x464, "emerald": 0x690, "ruby": 0x640, "sapphire": 0x640}[game]
+        self.tm_count = 58 if game in {"firered", "leafgreen"} else 64
+        self.key_offset = {"firered": 0xF20, "leafgreen": 0xF20, "emerald": 0xAC}.get(game)
+
     def can_parse(self, data: bytes) -> bool:
         return len(data) == SAVE_SIZE
 
@@ -62,13 +73,15 @@ class FireRedParser(BaseSaveParser):
 
     def _parse_party(self, sections: dict, trainer: TrainerInfo) -> list[ParsedPokemon]:
         data = get_section_data(sections, SECTION_TEAM_ITEMS)
-        count = struct.unpack_from("<I", data, PARTY_COUNT_OFFSET)[0]
+        count = struct.unpack_from("<I", data, self.party_count_offset)[0]
+        if self.strict and count > 6:
+            raise SaveParseError("La cantidad de Pokémon del equipo no es válida.")
         count = min(count, 6)
         party = []
         for i in range(count):
-            offset = PARTY_DATA_OFFSET + i * PARTY_POKEMON_SIZE
+            offset = self.party_data_offset + i * PARTY_POKEMON_SIZE
             raw = data[offset : offset + PARTY_POKEMON_SIZE]
-            pkm = parse_pokemon(raw, is_party=True, party_slot=i)
+            pkm = parse_pokemon(raw, is_party=True, party_slot=i, strict=self.strict)
             if pkm is not None:
                 party.append(pkm)
         return party
@@ -78,10 +91,14 @@ class FireRedParser(BaseSaveParser):
         from ..constants import ITEM_NAMES
         data = get_section_data(sections, SECTION_TEAM_ITEMS)
         tms = []
-        for i in range(BAG_TM_COUNT):
-            offset = BAG_TM_OFFSET + i * 4
+        key = 0
+        if self.key_offset is not None:
+            trainer_data = get_section_data(sections, SECTION_TRAINER_INFO)
+            key = struct.unpack_from("<I", trainer_data, self.key_offset)[0] & 0xFFFF
+        for i in range(self.tm_count):
+            offset = self.tm_offset + i * 4
             item_id = struct.unpack_from("<H", data, offset)[0]
-            qty = struct.unpack_from("<H", data, offset + 2)[0]
+            qty = struct.unpack_from("<H", data, offset + 2)[0] ^ key
             if item_id and qty:
                 name = ITEM_NAMES.get(item_id, f"Item#{item_id}")
                 tms.append(name)
@@ -104,6 +121,7 @@ class FireRedParser(BaseSaveParser):
                     is_party=False,
                     box_number=box_num,
                     box_slot=slot,
+                    strict=self.strict,
                 )
                 box.append(pkm)
             boxes.append(box)

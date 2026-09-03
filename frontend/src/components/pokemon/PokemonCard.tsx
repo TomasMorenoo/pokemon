@@ -1,12 +1,15 @@
 import React from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { Mars, Venus } from 'lucide-react'
 import type { Pokemon } from '../../types/pokemon'
 import { IVStars } from './IVStars'
 import { getPrimaryType, getTypes, TYPE_COLOR, TYPE_ES, TYPE_ICON_URL } from '../../data/pokemonTypes'
 import { Pokeball } from '../ui/Pokeball'
+import PokemonSprite from './PokemonSprite'
+import { GAMES } from '../../api/drive'
 
 export default function PokemonCard({ pokemon }: { pokemon: Pokemon }) {
+  const location = useLocation()
   const dexNum = String(pokemon.species_id).padStart(4, '0')
   const primary = getPrimaryType(pokemon.species_id)
   const [type1, type2] = getTypes(pokemon.species_id)
@@ -17,7 +20,7 @@ export default function PokemonCard({ pokemon }: { pokemon: Pokemon }) {
 
   return (
     <Link
-      to={`/pokemon/${pokemon.id}`}
+      to={`/pokemon/${pokemon.id}${location.search}`}
       className="group bg-gray-900 hover:bg-gray-800 border border-gray-800 hover:border-gray-700 rounded-2xl p-4 flex flex-col gap-2 transition-all"
     >
       {/* Sprite left + types+stars right */}
@@ -26,16 +29,7 @@ export default function PokemonCard({ pokemon }: { pokemon: Pokemon }) {
           className="w-20 h-20 sm:w-28 sm:h-28 rounded-xl flex items-center justify-center overflow-hidden shrink-0"
           style={{ backgroundColor: color + '22' }}
         >
-          <img
-            src={`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${pokemon.species_id}.png`}
-            alt={pokemon.species_name}
-            className="w-full h-full object-contain pixelated"
-            onError={(e) => {
-              const t = e.currentTarget
-              t.style.display = 'none'
-              t.parentElement!.innerHTML = `<span style="color:${color};font-size:2rem;font-weight:900;opacity:0.4">${pokemon.species_name[0]}</span>`
-            }}
-          />
+          <PokemonSprite speciesId={pokemon.species_id} shiny={pokemon.is_shiny} name={pokemon.species_name} className="w-full h-full object-contain" />
         </div>
 
         <div className="flex flex-col gap-1.5 items-end">
@@ -72,6 +66,7 @@ export default function PokemonCard({ pokemon }: { pokemon: Pokemon }) {
           </span>
         </div>
         <div className="font-semibold text-sm leading-tight text-white truncate">{name}</div>
+        <div className="text-[10px] text-gray-500">{GAMES.find(g => g.id === pokemon.game)?.name ?? 'Manual'}</div>
         <div className="flex items-center justify-between mt-0.5">
           <span className="text-xs text-gray-500 truncate">
             {pokemon.nickname && pokemon.nickname !== pokemon.species_name ? pokemon.species_name : ''}

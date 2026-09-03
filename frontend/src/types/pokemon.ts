@@ -65,15 +65,20 @@ export interface Pokemon {
 }
 
 export interface SyncPreview {
+  game?: string
+  sync_session_ids?: number[]
+  games?: string[]
   sync_session_id: number
   new_count: number
   updated_count: number
   unchanged_count: number
+  removed_count: number
   items: SyncDiffItem[]
 }
 
 export interface SyncDiffItem {
-  status: 'new' | 'updated' | 'unchanged'
+  game?: string
+  status: 'new' | 'updated' | 'unchanged' | 'removed'
   pokemon: {
     species_name: string
     species_id: number
@@ -85,7 +90,12 @@ export interface SyncDiffItem {
     pid: number
     ot_id: number
   }
-  changes: Record<string, { from: unknown; to: unknown }> | null
+  changes: {
+    evolution?: { from: string; to: string }
+    level?: { from: number; to: number }
+    nickname?: { from: string | null; to: string }
+    moves?: { added: string[]; removed: string[] }
+  } | null
 }
 
 export interface SyncResult {
@@ -94,6 +104,7 @@ export interface SyncResult {
   new_count: number
   updated_count: number
   unchanged_count: number
+  removed_count: number
   completed_at: string | null
 }
 
@@ -105,6 +116,9 @@ export interface User {
 }
 
 export interface ManualPokemonIn {
+  is_shiny?: boolean
+  game?: string
+  form_name?: string
   species_id: number
   species_name: string
   nickname?: string

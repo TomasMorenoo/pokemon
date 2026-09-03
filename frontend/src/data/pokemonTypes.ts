@@ -64,7 +64,7 @@ export const TYPE_COLOR: Record<PokemonType, string> = {
 }
 
 export function typeSpriteSrc(type: PokemonType): string {
-  const id = TYPE_SPRITE_ID[type]
+  const id = ['Normal', 'Fighting', 'Flying', 'Poison', 'Ground', 'Rock', 'Bug', 'Ghost', 'Steel', 'Fire', 'Water', 'Grass', 'Electric', 'Psychic', 'Ice', 'Dragon', 'Dark'].indexOf(type) + 1
   return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/types/generation-iii/firered-leafgreen/${id}.png`
 }
 

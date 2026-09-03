@@ -1,4 +1,8 @@
 import { useState, useMemo } from 'react'
+import { isAxiosError } from 'axios'
+import { useQuery } from '@tanstack/react-query'
+import { GAMES, getDriveConfigs, type Game } from '../api/drive'
+import GameCollections from '../components/pokemon/GameCollections'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Search, RefreshCw, ArrowUp, ArrowDown, X, Clipboard, ClipboardCheck } from 'lucide-react'
 import { usePokemonList } from '../hooks/usePokemon'
@@ -28,10 +32,15 @@ function sorted(list: Pokemon[], key: SortKey, asc: boolean): Pokemon[] {
   })
 }
 
-export default function HomePage() {
+export default function HomePage({ showGames = false }: { showGames?: boolean }) {
   const { data: pokemon = [], isLoading } = usePokemonList()
   const [preview, setPreview] = useState<SyncPreview | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
+  const { data: configs = [] } = useQuery({ queryKey: ['drive-configs'], queryFn: getDriveConfigs })
+  const selectedGame = searchParams.get('game') ?? 'all'
+  const syncedGames: Game[] = GAMES.filter(g => configs.some(c => c.game === g.id && c.synced_at)
+    || pokemon.some(p => p.game === g.id && p.added_via === 'sync')).map(g => g.id)
+  const collection = useMemo(() => selectedGame === 'all' ? pokemon : pokemon.filter(p => p.game === selectedGame), [pokemon, selectedGame])
 
   const search = searchParams.get('q') ?? ''
   const sortKey = (searchParams.get('sort') ?? 'dex') as SortKey
@@ -60,7 +69,7 @@ export default function HomePage() {
 
   function copyCollection() {
     const lines: string[] = ['=== Mi Colección ===', '']
-    const bydex = [...pokemon].sort((a, b) => a.species_id - b.species_id)
+    const bydex = [...collection].sort((a, b) => a.species_id - b.species_id)
     bydex.forEach((p) => {
       const m = p.latest_measurement
       lines.push(`${p.species_name}${p.is_shiny ? ' ✨' : ''} — Nv. ${p.current_level ?? '?'}${p.nature_name ? ` — ${p.nature_name}` : ''}`)
@@ -90,18 +99,25 @@ export default function HomePage() {
     try {
       const result = await syncPreviewMut.mutateAsync()
       setPreview(result)
-    } catch {
-      alert('Error al sincronizar. Verifica tu configuración de Google Drive.')
+    } catch (error) {
+      alert(isAxiosError(error) && typeof error.response?.data?.detail === 'string'
+        ? error.response.data.detail : 'Error al sincronizar. Verificá tu configuración de Google Drive.')
     }
   }
 
   async function handleConfirm() {
     if (!preview) return
-    await syncConfirmMut.mutateAsync(preview.sync_session_id)
-    setPreview(null)
+    try {
+      await syncConfirmMut.mutateAsync(preview.sync_session_ids ?? [preview.sync_session_id])
+      setPreview(null)
+    } catch (error) {
+      alert(isAxiosError(error) && typeof error.response?.data?.detail === 'string'
+        ? error.response.data.detail : 'No se pudo confirmar la sincronización. Intentá nuevamente.')
+      if (isAxiosError(error) && error.response?.status === 409) setPreview(null)
+    }
   }
 
-  const recent = pokemon.filter((p) => p.added_via === 'sync').slice(0, 5)
+  const recent = collection.filter((p) => p.added_via === 'sync').slice(0, 5)
   const hasNewRecent = recent.some((p) => !dismissedIds.includes(p.id))
 
   function dismissRecent() {
@@ -113,34 +129,35 @@ export default function HomePage() {
   // Types present in collection
   const availableTypes = useMemo(() => {
     const types = new Set<PokemonType>()
-    pokemon.forEach((p) => types.add(getPrimaryType(p.species_id)))
+    collection.forEach((p) => types.add(getPrimaryType(p.species_id)))
     return [...types].sort()
-  }, [pokemon])
+  }, [collection])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     let list = q
-      ? pokemon.filter((p) =>
+      ? collection.filter((p) =>
           p.species_name.toLowerCase().includes(q) ||
           (p.nickname ?? '').toLowerCase().includes(q)
         )
-      : pokemon
+      : collection
     if (typeFilter) {
       list = list.filter((p) => getPrimaryType(p.species_id) === typeFilter)
     }
     return sorted(list, sortKey, sortAsc)
-  }, [pokemon, search, sortKey, sortAsc, typeFilter])
+  }, [collection, search, sortKey, sortAsc, typeFilter])
 
   return (
     <div className="space-y-6">
+      {!showGames && <Link to="/" className="inline-flex text-sm text-gray-400 hover:text-white">← Volver a las partidas</Link>}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold text-white">Mi colección</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{pokemon.length} Pokémon registrados</p>
+          <h1 className="text-2xl font-extrabold text-white">{showGames ? 'Mis partidas' : GAMES.find(g => g.id === selectedGame)?.name ?? 'Todos mis Pokémon'}</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{showGames ? 'Elegí una partida para ver sus Pokémon' : `${collection.length} Pokémon registrados`}</p>
         </div>
         <div className="flex items-center gap-2">
-          {pokemon.length > 0 && (
+          {!showGames && collection.length > 0 && (
             <button
               onClick={copyCollection}
               title="Copiar colección"
@@ -154,6 +171,7 @@ export default function HomePage() {
           )}
           <button
             onClick={handleSync}
+            title="Sincronizar todas las partidas configuradas"
             disabled={syncPreviewMut.isPending}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-900 disabled:text-blue-400 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition-colors"
           >
@@ -162,6 +180,10 @@ export default function HomePage() {
           </button>
         </div>
       </div>
+
+      {showGames && (isLoading ? <p className="text-gray-400">Cargando partidas...</p> : <GameCollections games={syncedGames} pokemon={pokemon} />)}
+
+      {!showGames && <>
 
       {/* Recent */}
       {hasNewRecent && recent.length > 0 && (
@@ -176,7 +198,7 @@ export default function HomePage() {
             {recent.map((p) => (
               <Link
                 key={p.id}
-                to={`/pokemon/${p.id}`}
+                to={`/pokemon/${p.id}?${searchParams.toString()}`}
                 className="flex items-center gap-4 bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-xl px-4 py-3 transition-colors"
               >
                 <span className="text-xs font-bold text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full">NUEVO</span>
@@ -294,6 +316,8 @@ export default function HomePage() {
           </div>
         )}
       </section>
+
+      </>}
 
       {preview && (
         <SyncModal

@@ -27,7 +27,7 @@ export default function AppShell() {
               key={to}
               to={to}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                pathname === to
+                (pathname === to || (to === '/' && (pathname === '/collection' || pathname.startsWith('/pokemon/'))))
                   ? 'bg-yellow-400/10 text-yellow-400'
                   : 'text-gray-400 hover:text-white hover:bg-gray-800'
               }`}
@@ -53,7 +53,7 @@ export default function AppShell() {
             key={to}
             to={to}
             className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs font-medium transition-colors ${
-              pathname === to ? 'text-yellow-400' : 'text-gray-500'
+              (pathname === to || (to === '/' && (pathname === '/collection' || pathname.startsWith('/pokemon/')))) ? 'text-yellow-400' : 'text-gray-500'
             }`}
           >
             <span className="w-5 h-5">{icon}</span>

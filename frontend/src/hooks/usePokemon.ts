@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { listPokemon, getPokemon, addManualPokemon, getTrainerBag } from '../api/pokemon'
 import type { ManualPokemonIn } from '../types/pokemon'
+import type { Game } from '../api/drive'
 
 export function usePokemonList() {
   return useQuery({
@@ -16,8 +17,8 @@ export function usePokemonDetail(id: number) {
   })
 }
 
-export function useTrainerBag() {
-  return useQuery({ queryKey: ['trainer-bag'], queryFn: getTrainerBag })
+export function useTrainerBag(game: Game = 'firered') {
+  return useQuery({ queryKey: ['trainer-bag', game], queryFn: () => getTrainerBag(game) })
 }
 
 export function useAddPokemon() {

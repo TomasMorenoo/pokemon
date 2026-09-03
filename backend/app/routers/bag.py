@@ -5,11 +5,12 @@ from ..database import get_db
 from ..services.auth_service import get_current_user
 from ..models.user import User
 from ..models.bag import TrainerBag
+from ..schemas.game import Game
 
 router = APIRouter()
 
 @router.get("/")
-async def get_bag(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(TrainerBag).where(TrainerBag.user_id == current_user.id))
+async def get_bag(game: Game = "firered", current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(TrainerBag).where(TrainerBag.user_id == current_user.id, TrainerBag.game == game))
     bag = result.scalar_one_or_none()
     return {"tms": bag.tms if bag else []}
