@@ -315,6 +315,8 @@ def _detect_changes(existing: PokemonInstance, pkm, latest=None) -> dict | None:
 
 
 def _measurement_has_changed(latest: PokemonMeasurement, pkm) -> bool:
+    old_move_ids = [int(move["move_id"]) for move in (latest.moves or [])]
+    new_move_ids = [move.move_id for move in pkm.moves]
     return (
         latest.level != pkm.level
         or latest.experience != pkm.experience
@@ -328,4 +330,5 @@ def _measurement_has_changed(latest: PokemonMeasurement, pkm) -> bool:
         or latest.iv_sp_defense != pkm.ivs.sp_defense
         or latest.ev_hp != pkm.evs.hp
         or latest.ev_attack != pkm.evs.attack
+        or old_move_ids != new_move_ids
     )

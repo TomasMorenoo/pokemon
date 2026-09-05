@@ -2,8 +2,8 @@ import { X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { Pokemon } from '../../types/pokemon'
 
-export default function LatestChanges({ pokemon, revision, onDismiss }: { pokemon: Pokemon[]; revision: string; onDismiss: () => void }) {
-  if (!revision || !pokemon.length) return null
+export default function LatestChanges({ pokemon, onDismiss }: { pokemon: Pokemon[]; onDismiss: () => void }) {
+  if (!pokemon.length) return null
   return (
     <section className="bg-gray-900 border border-gray-800 rounded-2xl p-4" aria-label="Últimos cambios">
       <div className="flex items-center justify-between gap-3 mb-3">

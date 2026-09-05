@@ -94,7 +94,7 @@ export default function HomePage({ showGames = false }: { showGames?: boolean })
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const [dismissedRevision, setDismissedRevision] = useState(() => localStorage.getItem('dismissedRecentRevision') ?? '')
+  const [hideLatestChanges, setHideLatestChanges] = useState(() => localStorage.getItem('hideLatestChanges') === '1')
   const syncPreviewMut = useSyncPreview()
   const syncConfirmMut = useSyncConfirm()
 
@@ -122,15 +122,11 @@ export default function HomePage({ showGames = false }: { showGames?: boolean })
 
   const recent = useMemo(() => [...pokemon].filter(p => p.added_via === 'sync').sort((a, b) =>
     new Date(b.latest_measurement?.recorded_at ?? b.first_seen_at).getTime() - new Date(a.latest_measurement?.recorded_at ?? a.first_seen_at).getTime()).slice(0, 5), [pokemon])
-  const recentRevision = useMemo(() => {
-    const revisions = [...configs.map(c => c.synced_at ?? ''), ...recent.map(p => p.latest_measurement?.recorded_at ?? p.first_seen_at)].sort()
-    return revisions[revisions.length - 1] ?? ''
-  }, [configs, recent])
-  const hasNewRecent = Boolean(recentRevision && recentRevision !== dismissedRevision)
+  const hasNewRecent = recent.length > 0 && !hideLatestChanges
 
   function dismissRecent() {
-    localStorage.setItem('dismissedRecentRevision', recentRevision)
-    setDismissedRevision(recentRevision)
+    localStorage.setItem('hideLatestChanges', '1')
+    setHideLatestChanges(true)
   }
 
   // Types present in collection
@@ -203,9 +199,9 @@ export default function HomePage({ showGames = false }: { showGames?: boolean })
         </div>
       </div>
 
-      {showGames && (isLoading ? <p className="text-gray-400">Cargando partidas...</p> : <GameCollections games={syncedGames} pokemon={pokemon} />)}
+      {showGames && hasNewRecent && <LatestChanges pokemon={recent} onDismiss={dismissRecent} />}
 
-      {showGames && hasNewRecent && <LatestChanges pokemon={recent} revision={recentRevision} onDismiss={dismissRecent} />}
+      {showGames && (isLoading ? <p className="text-gray-400">Cargando partidas...</p> : <GameCollections games={syncedGames} pokemon={pokemon} />)}
 
       {!showGames && <>
 
