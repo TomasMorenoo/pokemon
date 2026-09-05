@@ -8,9 +8,8 @@ import { Pokeball } from '../ui/Pokeball'
 import PokemonSprite from './PokemonSprite'
 import { GAMES } from '../../api/drive'
 
-export default function PokemonCard({ pokemon }: { pokemon: Pokemon }) {
+export default function PokemonCard({ pokemon, regionalNumber, repeated = false }: { pokemon: Pokemon; regionalNumber?: number | null; repeated?: boolean }) {
   const location = useLocation()
-  const dexNum = String(pokemon.species_id).padStart(4, '0')
   const primary = getPrimaryType(pokemon.species_id)
   const [type1, type2] = getTypes(pokemon.species_id)
   const color = TYPE_COLOR[primary]
@@ -59,7 +58,7 @@ export default function PokemonCard({ pokemon }: { pokemon: Pokemon }) {
       <div className="flex-1">
         <div className="flex items-center justify-between">
           <span className="text-xs text-gray-500 flex items-center gap-0.5">
-            <Pokeball className="w-3 h-3" colored />#{dexNum}
+            <Pokeball className="w-3 h-3" colored />#{String(regionalNumber ?? pokemon.species_id).padStart(regionalNumber ? 3 : 4, '0')}
           </span>
           <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: color + '33', color }}>
             Nv. {pokemon.current_level ?? '?'}
@@ -67,6 +66,7 @@ export default function PokemonCard({ pokemon }: { pokemon: Pokemon }) {
         </div>
         <div className="font-semibold text-sm leading-tight text-white truncate">{name}</div>
         <div className="text-[10px] text-gray-500">{GAMES.find(g => g.id === pokemon.game)?.name ?? 'Manual'}</div>
+        {repeated && <div className="text-[10px] uppercase tracking-wider text-amber-600">Repetido</div>}
         <div className="flex items-center justify-between mt-0.5">
           <span className="text-xs text-gray-500 truncate">
             {pokemon.nickname && pokemon.nickname !== pokemon.species_name ? pokemon.species_name : ''}

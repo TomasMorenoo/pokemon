@@ -9,19 +9,23 @@ import { usePokemonList } from '../hooks/usePokemon'
 import { useSyncPreview, useSyncConfirm } from '../hooks/useSync'
 import SyncModal from '../components/sync/SyncModal'
 import PokemonCard from '../components/pokemon/PokemonCard'
+import MissingPokemonCard from '../components/pokemon/MissingPokemonCard'
+import LatestChanges from '../components/pokemon/LatestChanges'
+import { collectionRowName, orderByRegionalDex } from '../data/collectionOrder'
+import { regionalDex } from '../data/regionalDex'
 import { ivTotal } from '../components/pokemon/IVStars'
 import { getPrimaryType, TYPE_COLOR, TYPE_ES, TYPE_ICON_URL } from '../data/pokemonTypes'
 import type { SyncPreview, Pokemon } from '../types/pokemon'
 import type { PokemonType } from '../data/pokemonTypes'
 
-type SortKey = 'name' | 'level' | 'dex' | 'stars' | 'recent'
+type SortKey = 'name' | 'level' | 'dex' | 'missing' | 'stars' | 'recent'
 
 function sorted(list: Pokemon[], key: SortKey, asc: boolean): Pokemon[] {
   const dir = asc ? 1 : -1
   return [...list].sort((a, b) => {
     if (key === 'name') return dir * a.species_name.localeCompare(b.species_name)
     if (key === 'level') return dir * ((a.current_level ?? 0) - (b.current_level ?? 0))
-    if (key === 'dex') return dir * (a.species_id - b.species_id)
+    if (key === 'dex' || key === 'missing') return dir * (a.species_id - b.species_id)
     if (key === 'recent') return dir * (new Date(a.first_seen_at).getTime() - new Date(b.first_seen_at).getTime())
     if (key === 'stars') {
       const sa = a.latest_measurement?.ivs ? ivTotal(a.latest_measurement.ivs) : -1
@@ -53,6 +57,7 @@ export default function HomePage({ showGames = false }: { showGames?: boolean })
   function setSortKey(k: SortKey) {
     setSearchParams((p) => {
       p.set('sort', k)
+      p.delete('missing')
       if (k === 'stars' || k === 'level' || k === 'recent') p.set('asc', '0')
       else p.set('asc', '1')
       return p
@@ -89,9 +94,7 @@ export default function HomePage({ showGames = false }: { showGames?: boolean })
     setTimeout(() => setCopied(false), 2000)
   }
 
-  const [dismissedIds, setDismissedIds] = useState<number[]>(() => {
-    try { return JSON.parse(localStorage.getItem('dismissedRecent') ?? '[]') } catch { return [] }
-  })
+  const [dismissedRevision, setDismissedRevision] = useState(() => localStorage.getItem('dismissedRecentRevision') ?? '')
   const syncPreviewMut = useSyncPreview()
   const syncConfirmMut = useSyncConfirm()
 
@@ -117,13 +120,17 @@ export default function HomePage({ showGames = false }: { showGames?: boolean })
     }
   }
 
-  const recent = collection.filter((p) => p.added_via === 'sync').slice(0, 5)
-  const hasNewRecent = recent.some((p) => !dismissedIds.includes(p.id))
+  const recent = useMemo(() => [...pokemon].filter(p => p.added_via === 'sync').sort((a, b) =>
+    new Date(b.latest_measurement?.recorded_at ?? b.first_seen_at).getTime() - new Date(a.latest_measurement?.recorded_at ?? a.first_seen_at).getTime()).slice(0, 5), [pokemon])
+  const recentRevision = useMemo(() => {
+    const revisions = [...configs.map(c => c.synced_at ?? ''), ...recent.map(p => p.latest_measurement?.recorded_at ?? p.first_seen_at)].sort()
+    return revisions[revisions.length - 1] ?? ''
+  }, [configs, recent])
+  const hasNewRecent = Boolean(recentRevision && recentRevision !== dismissedRevision)
 
   function dismissRecent() {
-    const ids = recent.map((p) => p.id)
-    localStorage.setItem('dismissedRecent', JSON.stringify(ids))
-    setDismissedIds(ids)
+    localStorage.setItem('dismissedRecentRevision', recentRevision)
+    setDismissedRevision(recentRevision)
   }
 
   // Types present in collection
@@ -146,6 +153,21 @@ export default function HomePage({ showGames = false }: { showGames?: boolean })
     }
     return sorted(list, sortKey, sortAsc)
   }, [collection, search, sortKey, sortAsc, typeFilter])
+
+  const showMissing = sortKey === 'missing'
+  const dexRows = useMemo(() => {
+    const rows = orderByRegionalDex(collection, selectedGame, showMissing, sortAsc)
+    const q = search.trim().toLowerCase()
+    return rows.filter(row => {
+      const speciesId = row.kind === 'pokemon' ? row.pokemon.species_id : row.speciesId
+      return (!q || collectionRowName(row).toLowerCase().includes(q)) && (!typeFilter || getPrimaryType(speciesId) === typeFilter)
+    })
+  }, [collection, selectedGame, showMissing, sortAsc, search, typeFilter])
+  const regionalSpecies = useMemo(() => new Set(regionalDex(selectedGame)), [selectedGame])
+  const regionalOwned = useMemo(() => new Set(collection.filter(p => regionalSpecies.has(p.species_id)).map(p => p.species_id)).size, [collection, regionalSpecies])
+  const regionalRows = dexRows.filter(row => row.kind === 'missing' || (!row.repeated && row.regionalNumber !== null))
+  const outsideRows = dexRows.filter(row => row.kind === 'pokemon' && !row.repeated && row.regionalNumber === null)
+  const repeatedRows = dexRows.filter(row => row.kind === 'pokemon' && row.repeated)
 
   return (
     <div className="space-y-6">
@@ -183,32 +205,9 @@ export default function HomePage({ showGames = false }: { showGames?: boolean })
 
       {showGames && (isLoading ? <p className="text-gray-400">Cargando partidas...</p> : <GameCollections games={syncedGames} pokemon={pokemon} />)}
 
-      {!showGames && <>
+      {showGames && hasNewRecent && <LatestChanges pokemon={recent} revision={recentRevision} onDismiss={dismissRecent} />}
 
-      {/* Recent */}
-      {hasNewRecent && recent.length > 0 && (
-        <section>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Últimos cambios</h2>
-            <button onClick={dismissRecent} className="text-gray-600 hover:text-gray-300 text-sm leading-none transition-colors">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-          <div className="flex flex-col gap-2">
-            {recent.map((p) => (
-              <Link
-                key={p.id}
-                to={`/pokemon/${p.id}?${searchParams.toString()}`}
-                className="flex items-center gap-4 bg-gray-900 border border-gray-800 hover:border-gray-700 rounded-xl px-4 py-3 transition-colors"
-              >
-                <span className="text-xs font-bold text-green-400 bg-green-400/10 px-2 py-0.5 rounded-full">NUEVO</span>
-                <span className="font-medium text-sm text-white flex-1">{p.species_name}{p.is_shiny ? ' ✨' : ''}</span>
-                <span className="text-gray-500 text-xs">Nv. {p.current_level}</span>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
+      {!showGames && <>
 
       {/* Search + Sort */}
       <div className="flex gap-2">
@@ -232,6 +231,7 @@ export default function HomePage({ showGames = false }: { showGames?: boolean })
           className="bg-gray-900 border border-gray-800 text-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 transition-colors"
         >
           <option value="dex">N° Pokédex</option>
+          <option value="missing">Faltantes</option>
           <option value="name">Nombre</option>
           <option value="level">Nivel</option>
           <option value="stars">Estrellas</option>
@@ -293,7 +293,7 @@ export default function HomePage({ showGames = false }: { showGames?: boolean })
               <div key={i} className="bg-gray-900 rounded-2xl h-32 animate-pulse" />
             ))}
           </div>
-        ) : filtered.length === 0 ? (
+        ) : ((sortKey === 'dex' || sortKey === 'missing') ? dexRows.length : filtered.length) === 0 ? (
           <div className="text-center py-20 text-gray-600">
             {search || typeFilter ? (
               <>
@@ -308,11 +308,38 @@ export default function HomePage({ showGames = false }: { showGames?: boolean })
               </>
             )}
           </div>
+        ) : (sortKey === 'dex' || sortKey === 'missing') ? (
+          <div className="space-y-8">
+            {sortKey === 'missing' && !search && !typeFilter && (
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-white">Pokédex regional</p>
+                  <p className="text-xs text-gray-500 mt-1">Especies registradas</p>
+                </div>
+                <strong className="text-2xl text-blue-400">{regionalOwned}/{regionalSpecies.size}</strong>
+              </div>
+            )}
+            {regionalRows.length > 0 && <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+              {regionalRows.map(row => row.kind === 'missing'
+                ? <MissingPokemonCard key={`missing-${row.speciesId}`} speciesId={row.speciesId} regionalNumber={row.regionalNumber} />
+                : <PokemonCard key={row.pokemon.id} pokemon={row.pokemon} regionalNumber={row.regionalNumber} />)}
+            </div>}
+            {outsideRows.length > 0 && <section className="space-y-3">
+              <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest">Otra región</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {outsideRows.map(row => row.kind === 'pokemon' && <PokemonCard key={row.pokemon.id} pokemon={row.pokemon} />)}
+              </div>
+            </section>}
+            {repeatedRows.length > 0 && <section className="space-y-3">
+              <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-widest">Repetidos</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {repeatedRows.map(row => row.kind === 'pokemon' && <PokemonCard key={row.pokemon.id} pokemon={row.pokemon} regionalNumber={row.regionalNumber} repeated />)}
+              </div>
+            </section>}
+          </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-            {filtered.map((p) => (
-              <PokemonCard key={p.id} pokemon={p} />
-            ))}
+            {filtered.map(p => <PokemonCard key={p.id} pokemon={p} />)}
           </div>
         )}
       </section>
